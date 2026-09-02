@@ -1,0 +1,143 @@
+import { EvidenceClip } from './types';
+import { detections, incidents } from './mockData';
+
+const minsAgo = (m: number) => new Date(Date.now() - m * 60 * 1000).toISOString();
+const hoursAgo = (h: number) => new Date(Date.now() - h * 60 * 60 * 1000).toISOString();
+
+function fromDetection(
+  detIndex: number,
+  clip: Partial<EvidenceClip> & Pick<EvidenceClip, 'id' | 'durationSec' | 'sizeKb' | 'status' | 'note' | 'capturedAt' | 'trackId'>,
+): EvidenceClip {
+  const d = detections[detIndex];
+  const inc = incidents.find((i) => i.id === d.incidentId);
+  return {
+    incidentId: d.incidentId,
+    detectionId: d.id,
+    cameraId: d.cameraId,
+    vehicleId: d.vehicleId,
+    complaintId: inc?.complaintId,
+    type: d.type,
+    confidence: d.confidence,
+    severity: d.severity,
+    bbox: d.bbox,
+    location: d.location,
+    framesUsed: Math.round(clip.durationSec * 12),
+    bufferWindowSec: 8,
+    privacyApplied: clip.status === 'stored' || clip.status === 'uploading',
+    stored: clip.status === 'stored',
+    ...clip,
+  };
+}
+
+export const seedEvidence: EvidenceClip[] = [
+  fromDetection(0, {
+    id: 'EV-1024',
+    trackId: 'TRK-014',
+    durationSec: 6.4,
+    sizeKb: 1840,
+    status: 'stored',
+    capturedAt: minsAgo(2),
+    note: 'Cropped from 8s RAM buffer. Full stream discarded.',
+  }),
+  fromDetection(2, {
+    id: 'EV-1025',
+    trackId: 'TRK-021',
+    durationSec: 5.2,
+    sizeKb: 1120,
+    status: 'stored',
+    capturedAt: minsAgo(18),
+    note: 'Longitudinal crack crop. Privacy applied before upload.',
+  }),
+  fromDetection(3, {
+    id: 'EV-1026',
+    trackId: 'TRK-008',
+    durationSec: 7.1,
+    sizeKb: 2010,
+    status: 'stored',
+    capturedAt: hoursAgo(5),
+    note: 'Surface damage crop attached to resolved complaint.',
+  }),
+  fromDetection(4, {
+    id: 'EV-1027',
+    trackId: 'TRK-033',
+    durationSec: 5.0,
+    sizeKb: 860,
+    status: 'stored',
+    capturedAt: hoursAgo(2),
+    note: 'Small pothole. Stored after unique-track confirmation.',
+  }),
+  fromDetection(5, {
+    id: 'EV-1028',
+    trackId: 'TRK-019',
+    durationSec: 6.0,
+    sizeKb: 1340,
+    status: 'stored',
+    capturedAt: hoursAgo(7),
+    note: 'Depression crop. Duplicate check passed.',
+  }),
+  fromDetection(7, {
+    id: 'EV-1030',
+    trackId: 'TRK-041',
+    durationSec: 6.8,
+    sizeKb: 0,
+    status: 'privacy',
+    capturedAt: minsAgo(0),
+    privacyApplied: false,
+    stored: false,
+    note: 'Live capture in progress. Not yet written to cloud.',
+  }),
+  {
+    id: 'EV-1011',
+    incidentId: 'RV-1018',
+    detectionId: 'DET-1990',
+    trackId: 'TRK-002',
+    cameraId: 'CAM-03',
+    vehicleId: 'BUS-091',
+    complaintId: 'CMP-8744',
+    type: 'crack',
+    confidence: 0.86,
+    severity: 'resolved',
+    bbox: { x: 0.32, y: 0.6, w: 0.3, h: 0.12 },
+    location: incidents.find((i) => i.id === 'RV-1018')!.location,
+    capturedAt: hoursAgo(30),
+    durationSec: 5.6,
+    sizeKb: 980,
+    framesUsed: 67,
+    bufferWindowSec: 8,
+    privacyApplied: true,
+    stored: true,
+    status: 'stored',
+    note: 'Historical crop retained with complaint pack.',
+  },
+  {
+    id: 'EV-FAIL-02',
+    incidentId: 'RV-1027',
+    detectionId: 'DET-2061',
+    trackId: 'TRK-033',
+    cameraId: 'CAM-06',
+    vehicleId: 'BUS-441',
+    type: 'pothole',
+    confidence: 0.81,
+    severity: 'low',
+    bbox: { x: 0.52, y: 0.64, w: 0.14, h: 0.1 },
+    location: detections[4].location,
+    capturedAt: hoursAgo(2),
+    durationSec: 5.0,
+    sizeKb: 0,
+    framesUsed: 48,
+    bufferWindowSec: 8,
+    privacyApplied: true,
+    stored: false,
+    status: 'failed',
+    failureReason: 'Upload interrupted. Crop kept locally for retry. Full stream was never written.',
+    note: 'Retry queued. Original live frames already discarded.',
+  },
+];
+
+export const storagePolicy = {
+  fullStreamGbPerHour: 1.4,
+  bufferSec: 8,
+  neverStoreFullStream: true,
+  cropOnly: true,
+  privacyBeforeStore: true,
+};
