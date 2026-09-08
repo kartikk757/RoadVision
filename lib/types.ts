@@ -201,4 +201,5 @@ export type RootStackParamList = {
   Reports: undefined;
   Menu: undefined;
   EvidencePlayer: { id: string };
+  UploadEvidence: undefined;
 };

@@ -1,10 +1,10 @@
 {
   "expo": {
-    "name": "Agon Preview",
+    "name": "RoadVision",
     "slug": "agon-preview",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/RoadVision-assets/icon.png",
     "userInterfaceStyle": "light",
     "ios": {
       "supportsTablet": true
@@ -12,35 +12,54 @@
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundImage": "./assets/android-icon-background.png",
-        "monochromeImage": "./assets/android-icon-monochrome.png"
+        "foregroundImage": "./assets/RoadVision-assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/RoadVision-assets/android-icon-background.png",
+        "monochromeImage": "./assets/RoadVision-assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false
     },
     "web": {
-      "favicon": "./assets/favicon.png",
+      "favicon": "./assets/RoadVision-assets/icon.png",
       "name": "ROADVISION",
       "shortName": "ROADVISION",
       "themeColor": "#F7F7F5",
       "backgroundColor": "#F7F7F5"
     },
-    "extra": {
-      "eas": {
-        "projectId": "552f0665-e30d-4f11-9ea9-97bc22a22809"
-      }
-    },
     "updates": {
-      "url": "https://u.expo.dev/552f0665-e30d-4f11-9ea9-97bc22a22809"
+      "url": "https://u.expo.dev/f96314b8-c134-4492-b3c7-5c32b554468e"
     },
     "runtimeVersion": {
       "policy": "appVersion"
     },
-    "owner": "arcadalabs",
     "platforms": [
       "ios",
       "android",
       "web"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "f96314b8-c134-4492-b3c7-5c32b554468e"
+      }
+    },
+    "plugins": [
+      "expo-image",
+      "expo-secure-store",
+      "expo-image-picker",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow RoadVision to use the camera for live road-defect detection.",
+          "recordAudioAndroid": false,
+          "barcodeScannerEnabled": false
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Allow RoadVision to use your location to center the live road map."
+        }
+      ],
+      "expo-video"
     ]
   }
 }

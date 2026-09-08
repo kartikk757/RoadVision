@@ -1,18 +1,19 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, FlatList, Pressable, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { colors, font, radius } from '../lib/theme';
-import { RootStackParamList } from '../lib/types';
-import { complaints as allComplaints, incidents, statusLabel } from '../lib/mockData';
+import { Complaint, Incident, RootStackParamList } from '../lib/types';
+import { statusLabel } from '../lib/mockData';
 import { timeAgo } from '../lib/format';
 import { StatusBadge } from '../components/ui/StatusBadge';
 import { EmptyState } from '../components/EmptyState';
 import { useApp } from '../context/AppContext';
 import { scopeComplaints } from '../lib/roleScope';
 import { evidenceAPI } from '../services/evidenceAPI';
+import { fetchComplaints, fetchIncidents } from '../services/backendData';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
@@ -20,6 +21,19 @@ export default function ComplaintsScreen() {
   const nav = useNavigation<Nav>();
   const { user } = useApp();
   const [refreshing, setRefreshing] = useState(false);
+  const [allComplaints, setAllComplaints] = useState<Complaint[]>([]);
+  const [incidents, setIncidents] = useState<Incident[]>([]);
+
+  useEffect(() => {
+    let active = true;
+    Promise.all([fetchComplaints(), fetchIncidents()]).then(([complaints, rows]) => {
+      if (!active) return;
+      setAllComplaints(complaints);
+      setIncidents(rows);
+    });
+    return () => { active = false; };
+  }, []);
+
   const complaints = scopeComplaints(user, allComplaints);
   const onRefresh = useCallback(() => {
     setRefreshing(true);

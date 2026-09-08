@@ -1,16 +1,17 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, FlatList, Pressable, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { colors, font, radius } from '../lib/theme';
-import { RootStackParamList, Severity } from '../lib/types';
-import { incidents as seed, severityLabel } from '../lib/mockData';
+import { Incident, RootStackParamList, Severity } from '../lib/types';
+import { severityLabel } from '../lib/mockData';
 import { IncidentCard } from '../components/IncidentCard';
 import { EmptyState } from '../components/EmptyState';
 import { useApp } from '../context/AppContext';
 import { scopeIncidents } from '../lib/roleScope';
+import { fetchIncidents } from '../services/backendData';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
@@ -19,7 +20,17 @@ export default function IncidentsScreen() {
   const { user } = useApp();
   const [filter, setFilter] = useState<Severity | 'all'>('all');
   const [refreshing, setRefreshing] = useState(false);
-  const scoped = useMemo(() => scopeIncidents(user, seed), [user]);
+  const [seed, setSeed] = useState<Incident[]>([]);
+
+  useEffect(() => {
+    let active = true;
+    fetchIncidents().then((rows) => {
+      if (active) setSeed(rows);
+    });
+    return () => { active = false; };
+  }, []);
+
+  const scoped = useMemo(() => scopeIncidents(user, seed), [user, seed]);
   const data = useMemo(
     () =>
       [...scoped]

@@ -15,6 +15,7 @@ import { DetectionStory } from '../components/AIPipeline';
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
 const items: { t: string; s: string; icon: keyof typeof Ionicons.glyphMap; to: keyof RootStackParamList }[] = [
+  { t: 'Upload Evidence', s: 'Analyze image or video', icon: 'cloud-upload-outline', to: 'UploadEvidence' },
   { t: 'Cameras', s: 'Fleet streams', icon: 'videocam-outline', to: 'Cameras' },
   { t: 'Complaints', s: 'Authority workflow', icon: 'document-text-outline', to: 'Complaints' },
   { t: 'Analytics', s: 'Road health', icon: 'bar-chart-outline', to: 'Analytics' },

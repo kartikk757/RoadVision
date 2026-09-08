@@ -1,12 +1,12 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, useWindowDimensions } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { colors, font, radius } from '../lib/theme';
-import { RootStackParamList } from '../lib/types';
+import { Complaint, Detection, Incident, RootStackParamList } from '../lib/types';
 import { useApp } from '../context/AppContext';
-import { fullPipeline, metrics } from '../lib/mockData';
+import { fullPipeline } from '../lib/mockData';
 import { formatDate, greeting, pct, timeAgo } from '../lib/format';
 import { roleHomeCopy, scopeComplaints, scopeDetections, scopeIncidents } from '../lib/roleScope';
 import { evidenceAPI } from '../services/evidenceAPI';
@@ -17,18 +17,39 @@ import { AIPipeline, DetectionStory } from '../components/AIPipeline';
 import { MapPreview } from '../components/MapPreview';
 import { Button } from '../components/ui/Button';
 import { defectLabel } from '../lib/mockData';
+import { fetchComplaints, fetchDetections, fetchIncidents } from '../services/backendData';
+import { useCurrentLocation } from '../hooks/useCurrentLocation';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
 export default function DashboardScreen() {
   const nav = useNavigation<Nav>();
   const { user, monitoring, setMonitoring, cameras } = useApp();
+  const { location } = useCurrentLocation();
   const { width } = useWindowDimensions();
   const isWide = width >= 900;
   const [refreshing, setRefreshing] = useState(false);
-  const scopedIncidents = useMemo(() => scopeIncidents(user), [user]);
-  const scopedDetections = useMemo(() => scopeDetections(user), [user]);
-  const scopedComplaints = useMemo(() => scopeComplaints(user), [user]);
+  const [incidents, setIncidents] = useState<Incident[]>([]);
+  const [detections, setDetections] = useState<Detection[]>([]);
+  const [complaints, setComplaints] = useState<Complaint[]>([]);
+  const loadData = useCallback(async () => {
+    const [incidentRows, detectionRows, complaintRows] = await Promise.all([
+      fetchIncidents(),
+      fetchDetections(),
+      fetchComplaints(),
+    ]);
+    setIncidents(incidentRows);
+    setDetections(detectionRows);
+    setComplaints(complaintRows);
+  }, []);
+
+  useEffect(() => {
+    void loadData();
+  }, [loadData]);
+
+  const scopedIncidents = useMemo(() => scopeIncidents(user, incidents), [user, incidents]);
+  const scopedDetections = useMemo(() => scopeDetections(user, detections), [user, detections]);
+  const scopedComplaints = useMemo(() => scopeComplaints(user, complaints), [user, complaints]);
   const copy = roleHomeCopy(user);
   const recent = useMemo(
     () => [...scopedDetections].sort((a, b) => +new Date(b.timestamp) - +new Date(a.timestamp)).slice(0, 6),
@@ -40,11 +61,15 @@ export default function DashboardScreen() {
   const openRegion = scopedComplaints.filter((c) => c.status !== 'resolved').length;
   const regionCritical = scopedIncidents.filter((i) => i.severity === 'critical').length;
   const evidenceCount = evidenceAPI.list().filter((e) => scopedIncidents.some((i) => i.id === e.incidentId) && e.stored).length;
+  const averageConfidence = scopedDetections.length
+    ? scopedDetections.reduce((sum, detection) => sum + detection.confidence, 0) / scopedDetections.length
+    : 0;
+  const roadsScanned = new Set(scopedIncidents.map((incident) => incident.location.road)).size;
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
-    setTimeout(() => setRefreshing(false), 600);
-  }, []);
+    void loadData().finally(() => setRefreshing(false));
+  }, [loadData]);
 
   return (
     <Screen
@@ -120,10 +145,10 @@ export default function DashboardScreen() {
           </>
         ) : (
           <>
-            <StatCard label="Roads scanned" value={metrics.roadsScanned} hint="km equivalent today" accent={colors.blue} />
-            <StatCard label="Defects detected" value={metrics.defectsDetected} hint="unique after de-dupe" accent={colors.purple} />
-            <StatCard label="Critical defects" value={metrics.criticalDefects} hint="needs immediate repair" accent={colors.red} />
-            <StatCard label="AI confidence" value={pct(metrics.aiConfidence)} hint="rolling average" accent={colors.green} />
+            <StatCard label="Roads scanned" value={roadsScanned} hint="roads with live incidents" accent={colors.blue} />
+            <StatCard label="Defects detected" value={scopedIncidents.length} hint="records from Supabase" accent={colors.purple} />
+            <StatCard label="Critical defects" value={scopedIncidents.filter((incident) => incident.severity === 'critical').length} hint="needs immediate repair" accent={colors.red} />
+            <StatCard label="AI confidence" value={pct(averageConfidence)} hint="from live detections" accent={colors.green} />
           </>
         )}
       </View>
@@ -137,7 +162,7 @@ export default function DashboardScreen() {
             </Pressable>
           </View>
           <Pressable onPress={() => nav.navigate('Map')} style={{ minHeight: isWide ? 360 : 240 }}>
-            <MapPreview incidents={scopedIncidents} onSelect={(id) => nav.navigate('IncidentDetails', { id })} tall={isWide} />
+            <MapPreview incidents={scopedIncidents} currentLocation={location} onSelect={(id) => nav.navigate('IncidentDetails', { id })} tall={isWide} />
           </Pressable>
         </View>
         <View style={[styles.feedCol, isWide && { flex: 1 }]}>
@@ -189,8 +214,9 @@ export default function DashboardScreen() {
           </>
         ) : (
           <>
+            <Quick icon="cloud-upload-outline" title="Upload evidence" sub="Image or video intake" onPress={() => nav.navigate('UploadEvidence')} />
             <Quick icon="videocam-outline" title="Live monitor" sub={`${online} cameras online`} onPress={() => nav.navigate('Live')} />
-            <Quick icon="alert-circle-outline" title="Critical" sub={`${metrics.criticalDefects} open`} onPress={() => nav.navigate('Incidents')} />
+            <Quick icon="alert-circle-outline" title="Critical" sub={`${scopedIncidents.filter((incident) => incident.severity === 'critical').length} open`} onPress={() => nav.navigate('Incidents')} />
             <Quick icon="document-text-outline" title="Complaints" sub="Authority workflow" onPress={() => nav.navigate('Complaints')} />
             <Quick icon="bar-chart-outline" title="Analytics" sub="Road health" onPress={() => nav.navigate('Analytics')} />
           </>

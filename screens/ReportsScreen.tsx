@@ -4,7 +4,6 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { colors, font, radius } from '../lib/theme';
-import { metrics } from '../lib/mockData';
 import { RootStackParamList, EvidenceStatus } from '../lib/types';
 import { Screen } from '../components/layout/Screen';
 import { CroppedClip } from '../components/CroppedClip';
@@ -19,12 +18,6 @@ import { EmptyState } from '../components/EmptyState';
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 type Tab = 'briefs' | 'evidence';
 
-const reports = [
-  { id: 'R-204', title: 'Daily corridor brief', when: 'Today, 07:00', body: `${metrics.defectsDetected} defects · ${metrics.criticalDefects} critical · NH-27 priority` },
-  { id: 'R-198', title: 'PWD weekly pack', when: 'Mon, 08:30', body: 'Evidence zip for Division 4. 11 unique incidents after de-dupe.' },
-  { id: 'R-191', title: 'Privacy audit log', when: 'Sun, 22:10', body: 'Anonymization applied to 1,204 frames. No policy exceptions.' },
-];
-
 export default function ReportsScreen() {
   const nav = useNavigation<Nav>();
   const { user } = useApp();
@@ -33,6 +26,12 @@ export default function ReportsScreen() {
   const [status, setStatus] = useState<'all' | EvidenceStatus>('all');
   const stats = evidenceAPI.stats();
   const regionIds = new Set(scopeIncidents(user).map((i) => i.id));
+  const briefHeadline = `${Math.max(stats.clips, 0)} clips · ${Math.max(stats.failed, 0)} flagged`;
+  const reports = [
+    { id: 'R-204', title: 'Daily corridor brief', when: 'Today, 07:00', body: briefHeadline },
+    { id: 'R-198', title: 'PWD weekly pack', when: 'Mon, 08:30', body: 'Evidence zip for Division 4. 11 unique incidents after de-dupe.' },
+    { id: 'R-191', title: 'Privacy audit log', when: 'Sun, 22:10', body: 'Anonymization applied to 1,204 frames. No policy exceptions.' },
+  ];
 
   const clips = useMemo(() => {
     return evidenceAPI

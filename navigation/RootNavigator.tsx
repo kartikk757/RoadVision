@@ -23,6 +23,7 @@ import ReportsScreen from '../screens/ReportsScreen';
 import SettingsScreen from '../screens/SettingsScreen';
 import MenuScreen from '../screens/MenuScreen';
 import EvidencePlayerScreen from '../screens/EvidencePlayerScreen';
+import UploadEvidenceScreen from '../screens/UploadEvidenceScreen';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -63,6 +64,7 @@ const Reports = withShell(ReportsScreen);
 const Settings = withShell(SettingsScreen);
 const Menu = withShell(MenuScreen);
 const EvidencePlayer = withShell(EvidencePlayerScreen);
+const UploadEvidence = withShell(UploadEvidenceScreen);
 
 function MainStack() {
   return (
@@ -89,6 +91,7 @@ function MainStack() {
       <Stack.Screen name="Settings" component={Settings} />
       <Stack.Screen name="Menu" component={Menu} />
       <Stack.Screen name="EvidencePlayer" component={EvidencePlayer} />
+      <Stack.Screen name="UploadEvidence" component={UploadEvidence} />
     </Stack.Navigator>
   );
 }

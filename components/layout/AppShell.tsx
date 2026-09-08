@@ -18,6 +18,7 @@ const primary = [
 ];
 
 const secondary = [
+  { key: 'UploadEvidence', label: 'Upload Evidence', icon: 'cloud-upload-outline' as const },
   { key: 'Complaints', label: 'Complaints', icon: 'document-text-outline' as const },
   { key: 'Cameras', label: 'Cameras', icon: 'camera-outline' as const },
   { key: 'Analytics', label: 'Analytics', icon: 'bar-chart-outline' as const },
@@ -108,15 +109,17 @@ function Sidebar({ compact }: { compact: boolean }) {
       </Pressable>
 
       <View style={styles.navBlock}>
-        {prim.map((item) => (
-          <NavItem key={item.key} {...item} active={active === item.key} compact={compact} onPress={() => go(item.key)} />
-        ))}
+        {prim.map((item) => {
+          const { key, ...rest } = item;
+          return <NavItem key={key} {...rest} active={active === key} compact={compact} onPress={() => go(key)} />;
+        })}
       </View>
       <View style={styles.sep} />
       <View style={styles.navBlock}>
-        {sec.map((item) => (
-          <NavItem key={item.key} {...item} active={active === item.key} compact={compact} onPress={() => go(item.key)} />
-        ))}
+        {sec.map((item) => {
+          const { key, ...rest } = item;
+          return <NavItem key={key} {...rest} active={active === key} compact={compact} onPress={() => go(key)} />;
+        })}
       </View>
 
       <View style={{ flex: 1 }} />
@@ -166,7 +169,7 @@ function BottomNav() {
     <SafeAreaView edges={['bottom']} style={styles.bottom}>
       <View style={styles.bottomInner}>
         {tabs.map((t) => {
-          const on = active === t.key || (t.key === 'Menu' && ['Cameras', 'Complaints', 'Analytics', 'Reports', 'Settings', 'Menu'].includes(active));
+          const on = active === t.key || (t.key === 'Menu' && ['UploadEvidence', 'Cameras', 'Complaints', 'Analytics', 'Reports', 'Settings', 'Menu'].includes(active));
           return (
             <Pressable key={t.key} onPress={() => nav.navigate(t.key as never)} style={styles.tab}>
               <Ionicons name={on ? t.active : t.icon} size={22} color={on ? colors.text : colors.secondary} />

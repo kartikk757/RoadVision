@@ -40,3 +40,6 @@ yarn-error.*
 /ios
 /android
 .vercel
+
+# Local Python environment for the YOLO service
+/ai_server/.venv/

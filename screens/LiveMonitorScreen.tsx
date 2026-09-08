@@ -1,45 +1,51 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, useWindowDimensions } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useIsFocused, useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { colors, font, radius } from '../lib/theme';
-import { RootStackParamList } from '../lib/types';
+import { Detection, RootStackParamList } from '../lib/types';
 import { useApp } from '../context/AppContext';
-import { detections, fullPipeline } from '../lib/mockData';
+import { fullPipeline } from '../lib/mockData';
 import { coord, pct } from '../lib/format';
 import { Screen } from '../components/layout/Screen';
 import { CameraFeed } from '../components/CameraFeed';
+import { LiveCameraFeed } from '../components/LiveCameraFeed';
 import { AIPipeline } from '../components/AIPipeline';
 import { StatusBadge } from '../components/ui/StatusBadge';
 import { Button } from '../components/ui/Button';
 import { defectLabel, severityLabel } from '../lib/mockData';
 import { useYoloLive } from '../hooks/useYoloLive';
+import { fetchDetections } from '../services/backendData';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
 export default function LiveMonitorScreen() {
   const nav = useNavigation<Nav>();
   const { cameras, monitoring, setMonitoring, demoMode, user } = useApp();
+  const isFocused = useIsFocused();
   const { width } = useWindowDimensions();
   const isWide = width >= 960;
+  const [detections, setDetections] = useState<Detection[]>([]);
+
+  useEffect(() => {
+    let active = true;
+    fetchDetections().then((rows) => {
+      if (active) setDetections(rows);
+    });
+    return () => { active = false; };
+  }, []);
+
   const liveCams = cameras.filter((c) => c.status === 'online');
   const [camIndex, setCamIndex] = useState(0);
   const cam = liveCams[camIndex] ?? cameras[0];
-  const det = useMemo(() => detections.find((d) => d.cameraId === cam?.id) ?? detections[0], [cam]);
-  const [fps, setFps] = useState(cam?.fps ?? 24);
+  const det = useMemo(() => detections.find((d) => d.cameraId === cam?.id) ?? detections[0], [cam, detections]);
   const yolo = useYoloLive({
-    enabled: monitoring && !!cam,
+    enabled: monitoring && isFocused && !!cam,
     cameraId: cam?.id ?? 'CAM-01',
     vehicleId: cam?.vehicleId ?? 'BUS-204',
   });
   const liveBox = yolo.boxes[0];
-  const confLabel = liveBox ? `${(liveBox.confidence * 100).toFixed(1)}%` : pct(det.confidence);
-
-  useEffect(() => {
-    const id = setInterval(() => setFps((f) => Math.max(18, Math.min(28, f + (Math.random() > 0.5 ? 1 : -1)))), 1400);
-    return () => clearInterval(id);
-  }, []);
 
   if (!cam) {
     return (
@@ -49,11 +55,26 @@ export default function LiveMonitorScreen() {
     );
   }
 
+  if (!det && !monitoring) {
+    return (
+      <Screen title="Live Monitor" subtitle="Camera / YOLO">
+        <Text style={{ fontFamily: font.medium, color: colors.text }}>{cam.id} · {cam.vehicleId}</Text>
+        <Text style={{ fontFamily: font.regular, color: colors.secondary, marginTop: 8 }}>
+          No detections have been recorded for this camera yet.
+        </Text>
+        <View style={{ marginTop: 14 }}><Button title="Start live camera" variant="success" icon="play" onPress={() => setMonitoring(true)} /></View>
+      </Screen>
+    );
+  }
+
+  const activeBox = liveBox ?? det;
+  const confLabel = activeBox ? `${(activeBox.confidence * 100).toFixed(1)}%` : '—';
+
   return (
     <Screen title="Live Monitor" subtitle="Camera / YOLO" scroll right={<StatusBadge kind="live" label="LIVE" pulse />}>
       <View style={styles.metaBar}>
         <Text style={styles.meta}>{cam.id} · {cam.vehicleId} · {cam.route}</Text>
-        <Text style={styles.meta}>{fps} FPS</Text>
+        <Text style={styles.meta}>{yolo.inferFps ? `${yolo.inferFps} infer/s` : 'Waiting for camera'}</Text>
       </View>
 
       <View style={styles.camSwitch}>
@@ -71,14 +92,13 @@ export default function LiveMonitorScreen() {
         </View>
       ) : null}
 
-      <CameraFeed
-        detection={monitoring && !yolo.boxes.length ? det : undefined}
-        boxes={monitoring ? yolo.boxes : undefined}
-        fps={fps}
-        cameraId={cam.id}
-        vehicleId={cam.vehicleId}
-        live={monitoring}
-      />
+      {monitoring ? (
+        <LiveCameraFeed enabled={isFocused} boxes={yolo.boxes} inferFps={yolo.inferFps} cameraId={cam.id} vehicleId={cam.vehicleId} onDetections={yolo.ingest} onError={yolo.reportError} />
+      ) : (
+        <CameraFeed detection={det} fps={cam.fps} cameraId={cam.id} vehicleId={cam.vehicleId} live={false} />
+      )}
+
+      {yolo.serverError ? <View style={styles.serverError}><Ionicons name="cloud-offline-outline" size={16} color={colors.red} /><Text style={styles.serverErrorTxt}>{yolo.serverError}</Text></View> : null}
 
       {monitoring ? (
         <View style={styles.bufferRow}>
@@ -118,22 +138,21 @@ export default function LiveMonitorScreen() {
       <View style={[styles.panels, isWide && { flexDirection: 'row' }]}>
         <View style={styles.panel}>
           <Text style={styles.panelK}>Detection details</Text>
-          <Row k="Defect" v={defectLabel[liveBox?.type ?? det.type]} />
+          <Row k="Defect" v={activeBox ? defectLabel[activeBox.type] : 'Waiting for a road defect'} />
           <Row k="Confidence" v={confLabel} />
-          <Row k="Severity" v={severityLabel[det.severity]} />
-          <Row k="Approx. size" v={`${det.approxSizeCm} cm`} />
+          <Row k="Severity" v={det ? severityLabel[det.severity] : 'Pending confirmation'} />
+          <Row k="Approx. size" v={det ? `${det.approxSizeCm} cm` : '—'} />
           {liveBox ? <Row k="Track" v={liveBox.trackId} /> : null}
-          <Pressable onPress={() => nav.navigate('IncidentDetails', { id: det.incidentId })} style={styles.linkRow}>
-            <Text style={styles.link}>Open incident {det.incidentId}</Text>
-            <Ionicons name="arrow-forward" size={14} color={colors.blue} />
-          </Pressable>
+          {det ? <Pressable onPress={() => nav.navigate('IncidentDetails', { id: det.incidentId })} style={styles.linkRow}>
+            <Text style={styles.link}>Open incident {det.incidentId}</Text><Ionicons name="arrow-forward" size={14} color={colors.blue} />
+          </Pressable> : null}
         </View>
         <View style={styles.panel}>
           <Text style={styles.panelK}>Location</Text>
-          <Row k="Road" v={det.location.road} />
-          <Row k="City" v={`${det.location.city}, ${det.location.state}`} />
-          <Row k="Latitude" v={coord(det.location.lat)} />
-          <Row k="Longitude" v={coord(det.location.lng)} />
+          <Row k="Road" v={det?.location.road ?? 'Waiting for a recorded detection'} />
+          <Row k="City" v={det ? `${det.location.city}, ${det.location.state}` : '—'} />
+          <Row k="Latitude" v={det ? coord(det.location.lat) : '—'} />
+          <Row k="Longitude" v={det ? coord(det.location.lng) : '—'} />
           <Pressable onPress={() => nav.navigate('Map')} style={styles.linkRow}>
             <Text style={styles.link}>View on map</Text>
             <Ionicons name="map-outline" size={14} color={colors.blue} />
@@ -187,6 +206,8 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
   },
   warnTxt: { fontFamily: font.medium, fontSize: 13, color: colors.amber, flex: 1 },
+  serverError: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginTop: 12, backgroundColor: '#FEF3F2', borderRadius: radius.md, padding: 12 },
+  serverErrorTxt: { flex: 1, fontFamily: font.medium, fontSize: 12, color: colors.red, lineHeight: 18 },
   panels: { gap: 12, marginTop: 16 },
   panel: {
     flex: 1,

@@ -1,5 +1,5 @@
-import { cameras } from '../lib/mockData';
 import { Camera, CameraStatus } from '../lib/types';
+import { fetchCameras } from './backendData';
 
 const delay = (ms = 240) => new Promise((r) => setTimeout(r, ms));
 let extra: Camera[] = [];
@@ -7,7 +7,8 @@ let extra: Camera[] = [];
 export const cameraAPI = {
   async list(): Promise<Camera[]> {
     await delay();
-    return [...cameras, ...extra];
+    const backend = await fetchCameras();
+    return [...backend, ...extra];
   },
   async add(partial: Omit<Camera, 'lastActive' | 'installedAt' | 'status' | 'fps'> & { fps?: number }): Promise<Camera> {
     await delay(400);

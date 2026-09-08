@@ -1,10 +1,10 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, useWindowDimensions } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { colors, font, radius } from '../lib/theme';
 import { RootStackParamList } from '../lib/types';
-import { incidents, defectLabel, severityLabel, statusLabel } from '../lib/mockData';
+import { defectLabel, severityLabel, statusLabel } from '../lib/mockData';
 import { coord, formatTime, formatMb, pct } from '../lib/format';
 import { Screen } from '../components/layout/Screen';
 import { CameraFeed } from '../components/CameraFeed';
@@ -15,13 +15,28 @@ import { Button } from '../components/ui/Button';
 import { EmptyState } from '../components/EmptyState';
 import { CroppedClip } from '../components/CroppedClip';
 import { evidenceAPI } from '../services/evidenceAPI';
+import { fetchDetections, fetchIncidents } from '../services/backendData';
+import { Detection, Incident } from '../lib/types';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'IncidentDetails'>;
 
 export default function IncidentDetailsScreen({ route, navigation }: Props) {
   const { width } = useWindowDimensions();
   const isWide = width >= 960;
-  const item = incidents.find((i) => i.id === route.params.id);
+  const [item, setItem] = useState<Incident>();
+  const [det, setDet] = useState<Detection>();
+
+  useEffect(() => {
+    let active = true;
+    Promise.all([fetchIncidents(), fetchDetections()]).then(([incidentRows, detectionRows]) => {
+      if (!active) return;
+      const incident = incidentRows.find((row) => row.id === route.params.id);
+      setItem(incident);
+      setDet(detectionRows.find((row) => row.incidentId === route.params.id));
+    });
+    return () => { active = false; };
+  }, [route.params.id]);
+
   if (!item) {
     return (
       <Screen title="Incident">
@@ -29,7 +44,6 @@ export default function IncidentDetailsScreen({ route, navigation }: Props) {
       </Screen>
     );
   }
-  const det = item.detections[0];
   const clips = evidenceAPI.byIncident(item.id);
 
   return (

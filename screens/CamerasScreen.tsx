@@ -35,7 +35,7 @@ export default function CamerasScreen() {
       lastActive: new Date().toISOString(),
       installedAt: new Date().toISOString().slice(0, 10),
     };
-    addCamera(cam);
+    await addCamera(cam);
     setOpen(false);
     setTimeout(() => updateCamera(cam.id, { status: 'online', fps: 24 }), 900);
   };

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TextInput, Pressable } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -8,7 +8,8 @@ import { useApp } from '../context/AppContext';
 import { Screen } from '../components/layout/Screen';
 import { Button } from '../components/ui/Button';
 import { CameraFeed } from '../components/CameraFeed';
-import { detections } from '../lib/mockData';
+import { Detection } from '../lib/types';
+import { fetchDetections } from '../services/backendData';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Onboarding'>;
 
@@ -23,6 +24,12 @@ export default function OnboardingScreen(_props: Props) {
   const [busy, setBusy] = useState(false);
   const [connected, setConnected] = useState(false);
   const [tested, setTested] = useState(false);
+  const [error, setError] = useState('');
+  const [sampleDetection, setSampleDetection] = useState<Detection>();
+
+  useEffect(() => {
+    fetchDetections().then((rows) => setSampleDetection(rows[0]));
+  }, []);
 
   const next = async () => {
     if (step === 2) {
@@ -52,8 +59,12 @@ export default function OnboardingScreen(_props: Props) {
         lastActive: new Date().toISOString(),
         installedAt: new Date().toISOString().slice(0, 10),
       };
-      await completeOnboarding({ id: busId, type: 'City Bus', route }, cam);
-      await setMonitoring(true);
+      try {
+        await completeOnboarding({ id: busId, type: 'City Bus', route }, cam);
+        await setMonitoring(true);
+      } catch (nextError) {
+        setError(nextError instanceof Error ? nextError.message : 'Unable to save the camera to Supabase.');
+      }
       return;
     }
     setStep((s) => Math.min(4, s + 1));
@@ -112,15 +123,16 @@ export default function OnboardingScreen(_props: Props) {
               ? 'Confirm the feed and a sample detection before going live.'
               : 'After this, AI runs automatically. You only intervene on critical incidents.'}
           </Text>
-          <CameraFeed detection={tested ? detections[0] : undefined} fps={24} cameraId={camId} vehicleId={busId} live={tested} />
+          <CameraFeed detection={tested ? sampleDetection : undefined} fps={24} cameraId={camId} vehicleId={busId} live={tested} />
           {tested ? (
             <View style={styles.ok}>
               <Ionicons name="checkmark-circle" size={16} color={colors.green} />
-              <Text style={styles.okTxt}>Feed healthy · 24 FPS · detection sample received</Text>
+              <Text style={styles.okTxt}>{sampleDetection ? 'Feed healthy · 24 FPS · detection sample received' : 'Feed connected · waiting for a backend detection sample'}</Text>
             </View>
           ) : null}
         </View>
       )}
+      {error ? <Text style={styles.error}>{error}</Text> : null}
 
       <View style={styles.actions}>
         {step > 0 && step < 4 ? (
@@ -185,6 +197,7 @@ const styles = StyleSheet.create({
   statusTxt: { fontFamily: font.medium, fontSize: 14, color: colors.text },
   ok: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12 },
   okTxt: { fontFamily: font.medium, fontSize: 12, color: colors.green },
+  error: { fontFamily: font.medium, fontSize: 12, color: colors.red, marginTop: 12, lineHeight: 18 },
   actions: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 18 },
   back: { padding: 12 },
   backTxt: { fontFamily: font.medium, fontSize: 14, color: colors.secondary },

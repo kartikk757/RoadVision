@@ -1,9 +1,8 @@
 import { EvidenceClip, YoloBox, LocationInfo, DefectType, Severity } from '../lib/types';
-import { seedEvidence, storagePolicy } from '../lib/evidenceData';
+import { storagePolicy } from '../lib/evidenceData';
 import { privacyAPI } from './privacyAPI';
-import { incidents } from '../lib/mockData';
 
-let clips: EvidenceClip[] = seedEvidence.map((c) => ({ ...c }));
+let clips: EvidenceClip[] = [];
 const listeners = new Set<() => void>();
 let n = 200;
 
@@ -51,6 +50,7 @@ export const evidenceAPI = {
   },
 
   async capture(opts: {
+    incidentId?: string;
     trackId: string;
     cameraId: string;
     vehicleId: string;
@@ -59,16 +59,15 @@ export const evidenceAPI = {
     bufferSec: number;
     framesUsed: number;
   }): Promise<EvidenceClip> {
-    const inc = incidents.find((i) => i.cameraId === opts.cameraId) ?? incidents[0];
     const durationSec = Math.max(5, Math.min(8.5, opts.bufferSec * 0.8));
     let clip: EvidenceClip = {
       id: `EV-LIVE-${n++}`,
-      incidentId: inc.id,
+      incidentId: opts.incidentId ?? `LIVE-${opts.cameraId}`,
       detectionId: `DET-LIVE-${n}`,
       trackId: opts.trackId,
       cameraId: opts.cameraId,
       vehicleId: opts.vehicleId,
-      complaintId: inc.complaintId,
+      complaintId: undefined,
       type: opts.box.type as DefectType,
       confidence: opts.box.confidence,
       severity: (opts.box.confidence > 0.93 ? 'critical' : opts.box.confidence > 0.85 ? 'moderate' : 'low') as Severity,
@@ -123,7 +122,7 @@ export const evidenceAPI = {
   async retry(id: string) {
     const clip = clips.find((c) => c.id === id);
     if (!clip) return;
-    let next = { ...clip, status: 'uploading' as const, failureReason: undefined };
+    let next: EvidenceClip = { ...clip, status: 'uploading', failureReason: undefined };
     clips = clips.map((c) => (c.id === id ? next : c));
     emit();
     await new Promise((r) => setTimeout(r, 500));

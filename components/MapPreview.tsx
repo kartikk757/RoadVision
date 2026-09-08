@@ -1,18 +1,26 @@
 import React from 'react';
-import { View, Text, StyleSheet, Pressable } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Image } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withRepeat, withTiming } from 'react-native-reanimated';
 import { colors, font, radius, severityColor } from '../lib/theme';
 import { Incident, Severity } from '../lib/types';
+import { CurrentLocation } from '../hooks/useCurrentLocation';
 
-const LAT_MIN = 22.68;
-const LAT_MAX = 22.77;
-const LNG_MIN = 75.80;
-const LNG_MAX = 75.91;
+const ZOOM = 14;
+const TILE_SIZE = 256;
+const TILE_COUNT = 3;
 
-function toXY(lat: number, lng: number) {
-  const x = ((lng - LNG_MIN) / (LNG_MAX - LNG_MIN)) * 100;
-  const y = (1 - (lat - LAT_MIN) / (LAT_MAX - LAT_MIN)) * 100;
-  return { x: Math.min(94, Math.max(4, x)), y: Math.min(90, Math.max(8, y)) };
+function project(latitude: number, longitude: number) {
+  const scale = TILE_SIZE * 2 ** ZOOM;
+  const x = ((longitude + 180) / 360) * scale;
+  const sin = Math.sin((latitude * Math.PI) / 180);
+  const y = (0.5 - Math.log((1 + sin) / (1 - sin)) / (4 * Math.PI)) * scale;
+  return { x, y };
+}
+
+function tileUrl(x: number, y: number) {
+  const limit = 2 ** ZOOM;
+  const wrappedX = ((x % limit) + limit) % limit;
+  return `https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/${ZOOM}/${y}/${wrappedX}`;
 }
 
 export function MapPreview({
@@ -20,31 +28,57 @@ export function MapPreview({
   selectedId,
   onSelect,
   tall,
+  currentLocation,
 }: {
   incidents: Incident[];
   selectedId?: string;
   onSelect?: (id: string) => void;
   tall?: boolean;
+  currentLocation?: CurrentLocation;
 }) {
+  const center = currentLocation
+    ? project(currentLocation.latitude, currentLocation.longitude)
+    : incidents[0]
+      ? project(incidents[0].location.lat, incidents[0].location.lng)
+      : project(20.5937, 78.9629);
+  const centerTileX = Math.floor(center.x / TILE_SIZE);
+  const centerTileY = Math.floor(center.y / TILE_SIZE);
+  const centerTileOffsetX = center.x - centerTileX * TILE_SIZE;
+  const centerTileOffsetY = center.y - centerTileY * TILE_SIZE;
+  const markerPosition = (latitude: number, longitude: number) => {
+    const point = project(latitude, longitude);
+    const x = 50 + ((point.x - center.x) / (TILE_SIZE * 1.5)) * 50;
+    const y = 50 + ((point.y - center.y) / (TILE_SIZE * 1.1)) * 50;
+    return { x: Math.min(96, Math.max(4, x)), y: Math.min(92, Math.max(8, y)) };
+  };
+
   return (
     <View style={[styles.map, tall && { minHeight: 420 }]}>
-      <View style={styles.water} />
-      <View style={[styles.roadH, { top: '22%' }]} />
-      <View style={[styles.roadH, { top: '48%' }]} />
-      <View style={[styles.roadH, { top: '72%', width: '80%', left: '10%' }]} />
-      <View style={[styles.roadV, { left: '28%' }]} />
-      <View style={[styles.roadV, { left: '52%' }]} />
-      <View style={[styles.roadV, { left: '74%', height: '70%', top: '18%' }]} />
-      <View style={[styles.block, { left: '8%', top: '28%', width: '16%', height: '16%' }]} />
-      <View style={[styles.block, { left: '34%', top: '30%', width: '14%', height: '12%' }]} />
-      <View style={[styles.block, { left: '58%', top: '54%', width: '12%', height: '14%' }]} />
-      <View style={[styles.park, { left: '12%', top: '54%' }]} />
-      <Text style={[styles.cityLabel, { left: '40%', top: '12%' }]}>INDORE</Text>
-      <Text style={[styles.roadLabel, { left: '54%', top: '20%' }]}>NH-27</Text>
-      <Text style={[styles.roadLabel, { left: '30%', top: '46%' }]}>MG ROAD</Text>
-      <Text style={[styles.roadLabel, { left: '70%', top: '70%' }]}>AB ROAD</Text>
+      {Array.from({ length: TILE_COUNT }, (_, row) =>
+        Array.from({ length: TILE_COUNT }, (_, column) => {
+          const tileX = centerTileX + column - 1;
+          const tileY = centerTileY + row - 1;
+          return (
+            <Image
+              key={`${tileX}-${tileY}`}
+              source={{ uri: tileUrl(tileX, tileY) }}
+              style={{
+                position: 'absolute',
+                width: TILE_SIZE,
+                height: TILE_SIZE,
+                left: '50%',
+                top: '50%',
+                transform: [
+                  { translateX: (column - 1) * TILE_SIZE - centerTileOffsetX },
+                  { translateY: (row - 1) * TILE_SIZE - centerTileOffsetY },
+                ],
+              }}
+            />
+          );
+        }),
+      )}
       {incidents.map((inc) => {
-        const { x, y } = toXY(inc.location.lat, inc.location.lng);
+        const { x, y } = markerPosition(inc.location.lat, inc.location.lng);
         return (
           <MapMarker
             key={inc.id}
@@ -56,6 +90,13 @@ export function MapPreview({
           />
         );
       })}
+      {currentLocation ? (
+        <View style={[styles.locationMarker, { left: '50%', top: '50%' }]}>
+          <View style={styles.locationPulse} />
+          <View style={styles.locationDot} />
+        </View>
+      ) : null}
+      <Text style={styles.attribution}>Esri, HERE, Garmin, © OpenStreetMap contributors</Text>
       <View style={styles.legend}>
         {(['critical', 'moderate', 'low', 'resolved'] as Severity[]).map((s) => (
           <View key={s} style={styles.legItem}>
@@ -118,57 +159,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
-  water: {
-    position: 'absolute',
-    right: '4%',
-    top: '62%',
-    width: '18%',
-    height: '22%',
-    backgroundColor: colors.mapWater,
-    borderRadius: 40,
-  },
-  roadH: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    height: 10,
-    backgroundColor: colors.mapRoadMajor,
-  },
-  roadV: {
-    position: 'absolute',
-    top: 0,
-    bottom: 0,
-    width: 8,
-    backgroundColor: colors.mapRoad,
-  },
-  block: {
-    position: 'absolute',
-    backgroundColor: '#E4E6DF',
-    borderRadius: 4,
-    borderWidth: 1,
-    borderColor: '#D5D8D0',
-  },
-  park: {
-    position: 'absolute',
-    width: '14%',
-    height: '12%',
-    backgroundColor: '#D5E3CF',
-    borderRadius: 8,
-  },
-  cityLabel: {
-    position: 'absolute',
-    fontFamily: font.semibold,
-    fontSize: 11,
-    letterSpacing: 2,
-    color: '#9AA094',
-  },
-  roadLabel: {
-    position: 'absolute',
-    fontFamily: font.medium,
-    fontSize: 9,
-    letterSpacing: 1.2,
-    color: '#8B8E84',
-  },
   legend: {
     position: 'absolute',
     left: 12,
@@ -182,6 +172,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
+  attribution: { position: 'absolute', right: 8, bottom: 8, backgroundColor: 'rgba(255,255,255,0.88)', paddingHorizontal: 5, paddingVertical: 2, fontFamily: font.regular, fontSize: 9, color: colors.secondary },
   legItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   legDot: { width: 7, height: 7, borderRadius: 4 },
   legTxt: { fontFamily: font.medium, fontSize: 10, color: colors.secondary, textTransform: 'capitalize' },
@@ -189,4 +180,7 @@ const styles = StyleSheet.create({
   pulse: { position: 'absolute', width: 22, height: 22, borderRadius: 11 },
   marker: { width: 10, height: 10, borderRadius: 5, borderWidth: 2, borderColor: '#fff' },
   markerSel: { width: 14, height: 14, borderRadius: 7, borderWidth: 3 },
+  locationMarker: { position: 'absolute', width: 28, height: 28, marginLeft: -14, marginTop: -14, alignItems: 'center', justifyContent: 'center' },
+  locationPulse: { position: 'absolute', width: 28, height: 28, borderRadius: 14, backgroundColor: 'rgba(37, 99, 235, 0.25)' },
+  locationDot: { width: 14, height: 14, borderRadius: 7, backgroundColor: '#2563EB', borderWidth: 3, borderColor: '#fff' },
 });

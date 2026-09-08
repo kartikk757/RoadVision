@@ -1,22 +1,34 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, useWindowDimensions } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { colors, font, radius } from '../lib/theme';
 import { RootStackParamList } from '../lib/types';
-import { incidents } from '../lib/mockData';
 import { Screen } from '../components/layout/Screen';
 import { CameraFeed } from '../components/CameraFeed';
 import { EmptyState } from '../components/EmptyState';
+import { Detection, Incident } from '../lib/types';
+import { fetchDetections, fetchIncidents } from '../services/backendData';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Privacy'>;
 
 export default function PrivacyScreen({ route }: Props) {
   const { width } = useWindowDimensions();
   const isWide = width >= 900;
-  const item = incidents.find((i) => i.id === route.params.id) ?? incidents[0];
-  const det = item.detections[0];
-  if (!det) {
+  const [item, setItem] = useState<Incident>();
+  const [det, setDet] = useState<Detection>();
+
+  useEffect(() => {
+    let active = true;
+    Promise.all([fetchIncidents(), fetchDetections()]).then(([incidentRows, detectionRows]) => {
+      if (!active) return;
+      setItem(incidentRows.find((incident) => incident.id === route.params.id));
+      setDet(detectionRows.find((detection) => detection.incidentId === route.params.id));
+    });
+    return () => { active = false; };
+  }, [route.params.id]);
+
+  if (!item || !det) {
     return (
       <Screen title="Privacy">
         <EmptyState icon="eye-off-outline" title="No frame" body="A source frame is required for privacy review." />

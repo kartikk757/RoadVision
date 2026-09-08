@@ -1,22 +1,35 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, useWindowDimensions } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { colors, font, radius } from '../lib/theme';
-import { RootStackParamList } from '../lib/types';
-import { detections, incidents, defectLabel } from '../lib/mockData';
+import { Detection, Incident, RootStackParamList } from '../lib/types';
+import { defectLabel } from '../lib/mockData';
 import { pct, timeAgo, coord } from '../lib/format';
 import { Screen } from '../components/layout/Screen';
 import { CameraFeed } from '../components/CameraFeed';
 import { Button } from '../components/ui/Button';
 import { EmptyState } from '../components/EmptyState';
+import { fetchDetections, fetchIncidents } from '../services/backendData';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Duplicate'>;
 
 export default function DuplicateScreen({ route, navigation }: Props) {
   const { width } = useWindowDimensions();
   const isWide = width >= 900;
-  const item = incidents.find((i) => i.id === route.params.id) ?? incidents.find((i) => i.duplicate);
+  const [item, setItem] = useState<Incident>();
+  const [detections, setDetections] = useState<Detection[]>([]);
+
+  useEffect(() => {
+    let active = true;
+    Promise.all([fetchIncidents(), fetchDetections()]).then(([incidentRows, detectionRows]) => {
+      if (!active) return;
+      setItem(incidentRows.find((incident) => incident.id === route.params.id));
+      setDetections(detectionRows);
+    });
+    return () => { active = false; };
+  }, [route.params.id]);
+
   const match = item?.duplicate;
   const a = detections.find((d) => d.id === match?.detectionA);
   const b = detections.find((d) => d.id === match?.detectionB);
@@ -64,7 +77,7 @@ export default function DuplicateScreen({ route, navigation }: Props) {
   );
 }
 
-function CamCard({ title, det, vehicle }: { title: string; det: typeof detections[0]; vehicle: string }) {
+function CamCard({ title, det, vehicle }: { title: string; det: Detection; vehicle: string }) {
   return (
     <View style={styles.card}>
       <Text style={styles.cardK}>{title}</Text>

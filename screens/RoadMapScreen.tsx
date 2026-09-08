@@ -1,10 +1,10 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, Modal, useWindowDimensions } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { colors, font, radius } from '../lib/theme';
 import { DefectType, RootStackParamList, Severity } from '../lib/types';
-import { incidents as allIncidents, defectLabel, severityLabel } from '../lib/mockData';
+import { defectLabel, severityLabel } from '../lib/mockData';
 import { useApp } from '../context/AppContext';
 import { scopeIncidents } from '../lib/roleScope';
 import { pct, timeAgo } from '../lib/format';
@@ -12,6 +12,9 @@ import { Screen } from '../components/layout/Screen';
 import { MapPreview } from '../components/MapPreview';
 import { StatusBadge } from '../components/ui/StatusBadge';
 import { Button } from '../components/ui/Button';
+import { Incident } from '../lib/types';
+import { fetchIncidents } from '../services/backendData';
+import { useCurrentLocation } from '../hooks/useCurrentLocation';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
@@ -21,11 +24,22 @@ const types: (DefectType | 'all')[] = ['all', 'pothole', 'crack', 'damage', 'dep
 export default function RoadMapScreen() {
   const nav = useNavigation<Nav>();
   const { user } = useApp();
+  const { location, permission } = useCurrentLocation();
   const { height } = useWindowDimensions();
   const [sev, setSev] = useState<Severity | 'all'>('all');
   const [typ, setTyp] = useState<DefectType | 'all'>('all');
   const [selected, setSelected] = useState<string | undefined>();
-  const region = useMemo(() => scopeIncidents(user, allIncidents), [user]);
+  const [allIncidents, setAllIncidents] = useState<Incident[]>([]);
+
+  useEffect(() => {
+    let active = true;
+    fetchIncidents().then((rows) => {
+      if (active) setAllIncidents(rows);
+    });
+    return () => { active = false; };
+  }, []);
+
+  const region = useMemo(() => scopeIncidents(user, allIncidents), [user, allIncidents]);
 
   const data = useMemo(
     () =>
@@ -35,12 +49,14 @@ export default function RoadMapScreen() {
   const preview = region.find((i) => i.id === selected);
 
   return (
-    <Screen title="Road Map" subtitle="GIS intelligence" scroll={false} padded={false}>
+    <Screen title="Road Map" subtitle="GIS intelligence" padded={false}>
       <View style={{ paddingHorizontal: 20, paddingTop: 4 }}>
         <Text style={styles.lead}>
           {user?.role === 'authority'
             ? `Defects in ${user.division ?? 'your region'}. Markers pulse when critical.`
-            : 'Filter the live defect layer. Markers pulse when critical.'}
+            : permission === 'denied'
+              ? 'Location permission is required to center the live map on the conductor.'
+              : 'Live GPS map centered on the conductor. Markers pulse when critical.'}
         </Text>
         <ScrollChips>
           {sevs.map((s) => (
@@ -54,7 +70,7 @@ export default function RoadMapScreen() {
         </ScrollChips>
       </View>
       <View style={[styles.mapWrap, { height: Math.max(360, height * 0.55) }]}>
-        <MapPreview incidents={data} selectedId={selected} onSelect={setSelected} tall />
+        <MapPreview incidents={data} selectedId={selected} onSelect={setSelected} currentLocation={location} tall />
       </View>
 
       <Modal visible={!!preview} transparent animationType="fade" onRequestClose={() => setSelected(undefined)}>

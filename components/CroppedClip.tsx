@@ -81,9 +81,9 @@ const styles = StyleSheet.create({
   asphalt: { flex: 1, backgroundColor: '#2F3035', alignItems: 'center', justifyContent: 'center' },
   hole: { width: 120, height: 70, borderRadius: 40, backgroundColor: '#141518' },
   holeInner: { position: 'absolute', width: 64, height: 34, borderRadius: 20, backgroundColor: '#0C0D0F' },
-  grain: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(255,255,255,0.03)' },
+  grain: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(255,255,255,0.03)' },
   cropFrame: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     borderWidth: 2,
     borderColor: 'rgba(94,224,160,0.55)',
     margin: 10,

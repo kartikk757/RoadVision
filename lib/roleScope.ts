@@ -1,5 +1,4 @@
 import { User, Incident, Complaint, Detection } from './types';
-import { complaints, detections, incidents } from './mockData';
 
 export const authorityRegions = [
   { authority: 'Public Works Department', division: 'Indore Division 4' },
@@ -9,7 +8,7 @@ export const authorityRegions = [
   { authority: 'Indore Municipal Corporation', division: 'Heritage Zone' },
 ];
 
-export function scopeIncidents(user: User | null, list: Incident[] = incidents): Incident[] {
+export function scopeIncidents(user: User | null, list: Incident[] = []): Incident[] {
   if (user?.role !== 'authority') return list;
   return list.filter((i) => {
     if (user.division && i.division) return i.division === user.division;
@@ -18,7 +17,7 @@ export function scopeIncidents(user: User | null, list: Incident[] = incidents):
   });
 }
 
-export function scopeComplaints(user: User | null, list: Complaint[] = complaints): Complaint[] {
+export function scopeComplaints(user: User | null, list: Complaint[] = []): Complaint[] {
   if (user?.role !== 'authority') return list;
   return list.filter((c) => {
     if (user.division) return c.division === user.division;
@@ -27,7 +26,7 @@ export function scopeComplaints(user: User | null, list: Complaint[] = complaint
   });
 }
 
-export function scopeDetections(user: User | null, list: Detection[] = detections): Detection[] {
+export function scopeDetections(user: User | null, list: Detection[] = []): Detection[] {
   if (user?.role !== 'authority') return list;
   const ids = new Set(scopeIncidents(user).map((i) => i.id));
   return list.filter((d) => ids.has(d.incidentId));

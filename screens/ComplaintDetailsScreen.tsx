@@ -1,9 +1,9 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { colors, font, radius } from '../lib/theme';
 import { RootStackParamList } from '../lib/types';
-import { complaints, incidents, defectLabel } from '../lib/mockData';
+import { defectLabel } from '../lib/mockData';
 import { Screen } from '../components/layout/Screen';
 import { ComplaintTimeline } from '../components/ComplaintTimeline';
 import { StatusBadge } from '../components/ui/StatusBadge';
@@ -13,13 +13,27 @@ import { EmptyState } from '../components/EmptyState';
 import { CroppedClip } from '../components/CroppedClip';
 import { evidenceAPI } from '../services/evidenceAPI';
 import { useApp } from '../context/AppContext';
+import { Complaint, Incident } from '../lib/types';
+import { fetchComplaints, fetchIncidents } from '../services/backendData';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ComplaintDetails'>;
 
 export default function ComplaintDetailsScreen({ route, navigation }: Props) {
   const { user } = useApp();
-  const c = complaints.find((x) => x.id === route.params.id);
-  const inc = c ? incidents.find((i) => i.id === c.incidentId) : undefined;
+  const [c, setComplaint] = useState<Complaint>();
+  const [inc, setIncident] = useState<Incident>();
+
+  useEffect(() => {
+    let active = true;
+    Promise.all([fetchComplaints(), fetchIncidents()]).then(([complaintRows, incidentRows]) => {
+      if (!active) return;
+      const complaint = complaintRows.find((row) => row.id === route.params.id);
+      setComplaint(complaint);
+      setIncident(complaint ? incidentRows.find((row) => row.id === complaint.incidentId) : undefined);
+    });
+    return () => { active = false; };
+  }, [route.params.id]);
+
   const clips = c ? evidenceAPI.byComplaint(c.id) : [];
   const outOfRegion =
     user?.role === 'authority' && c && user.division && c.division !== user.division;

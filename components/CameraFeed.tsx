@@ -189,7 +189,7 @@ const styles = StyleSheet.create({
     opacity: 0.7,
   },
   vignette: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     borderWidth: 0,
     backgroundColor: 'transparent',
   },

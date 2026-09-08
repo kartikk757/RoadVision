@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TextInput, Pressable, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, StyleSheet, TextInput, Pressable, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -29,9 +29,12 @@ const defaultNames: Record<Role, string> = {
 export default function LoginScreen(_props: Props) {
   const { login } = useApp();
   const [name, setName] = useState('Aarav Mehta');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [role, setRole] = useState<Role>('conductor');
   const [region, setRegion] = useState(0);
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
 
   const pickRole = (r: Role) => {
     setRole(r);
@@ -39,19 +42,29 @@ export default function LoginScreen(_props: Props) {
   };
 
   const go = async () => {
+    setError('');
+    if (!email.trim() || password.length < 6) {
+      setError('Enter an email and a password with at least 6 characters.');
+      return;
+    }
     setBusy(true);
     const extra =
       role === 'authority'
         ? { authority: authorityRegions[region].authority, division: authorityRegions[region].division }
         : undefined;
-    await login(name.trim() || 'Guest', role, extra);
-    setBusy(false);
+    try {
+      await login(name.trim() || 'Guest', email.trim(), password, role, extra);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Unable to sign in');
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
     <SafeAreaView style={styles.safe}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
-        <View style={styles.inner}>
+        <ScrollView contentContainerStyle={styles.inner} keyboardShouldPersistTaps="handled">
           <Text style={styles.brand}>ROADVISION</Text>
           <Text style={styles.kicker}>AI ROAD INTELLIGENCE</Text>
           <Text style={styles.h1}>See the road.{'\n'}Fix it faster.</Text>
@@ -67,6 +80,29 @@ export default function LoginScreen(_props: Props) {
             placeholderTextColor={colors.secondary}
             style={styles.input}
             returnKeyType="done"
+          />
+
+          <Text style={styles.label}>Email</Text>
+          <TextInput
+            value={email}
+            onChangeText={setEmail}
+            placeholder="you@example.com"
+            placeholderTextColor={colors.secondary}
+            style={styles.input}
+            keyboardType="email-address"
+            autoCapitalize="none"
+            autoComplete="email"
+          />
+
+          <Text style={styles.label}>Password</Text>
+          <TextInput
+            value={password}
+            onChangeText={setPassword}
+            placeholder="At least 6 characters"
+            placeholderTextColor={colors.secondary}
+            style={styles.input}
+            secureTextEntry
+            autoComplete="password"
           />
 
           <Text style={[styles.label, { marginTop: 18 }]}>Sign in as</Text>
@@ -100,12 +136,13 @@ export default function LoginScreen(_props: Props) {
             </View>
           ) : null}
 
-          <Button title="Continue" onPress={go} loading={busy} style={{ marginTop: 22 }} />
+          {error ? <Text style={styles.error}>{error}</Text> : null}
+          <Button title="Sign in / create account" onPress={go} loading={busy} style={{ marginTop: 22 }} />
 
           <View style={{ marginTop: 28 }}>
             <DetectionStory pipeline={fullPipeline('complaint')} />
           </View>
-        </View>
+        </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -143,4 +180,5 @@ const styles = StyleSheet.create({
   roleOn: { borderColor: colors.text, backgroundColor: colors.muted },
   roleTitle: { fontFamily: font.semibold, fontSize: 14, color: colors.secondary, marginTop: 10 },
   roleBody: { fontFamily: font.regular, fontSize: 12, color: colors.secondary, marginTop: 4 },
+  error: { fontFamily: font.regular, fontSize: 12, color: '#B42318', marginTop: 14 },
 });
